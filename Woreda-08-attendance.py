@@ -1,4 +1,3 @@
-import threading
 from streamlit.runtime.scriptrunner import add_script_run_ctx
 import streamlit as str_lit
 from datetime import datetime, timedelta
@@ -6,142 +5,7 @@ import pandas as pd
 import sqlite3
 import io
 
-DB_NAME = "attendance_system_v9.db"
-
-EMPLOYEES_DATABASE = {
-    "ፈንታሁን ካሳሁን አሊ": {
-        "id": "EMP001",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የሲቪል ምዝገባ ቡድን መሪ",
-    },
-    "ደጉ ማርቆስ": {
-        "id": "EMP002",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የነዋሪነት አገልግሎት ቡድን መሪ",
-    },
-    "ትግስት ተሊላ": {
-        "id": "EMP003",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የሪከርድና ማህደር ህትመት ስርጭት ቁጥጥር ቡድን መሪ",
-    },
-    "መላኩ ቤዛው": {
-        "id": "EMP004",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የነዋሪነት አገልግሎት ባለሙያ",
-    },
-    "ዘላለም አዲስ": {
-        "id": "EMP005",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የነዋሪነት አገልግሎት ባለሙያ",
-   },
-    "መገርሳ ኦሊቃ": {
-        "id": "EMP006",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የነዋሪነት አገልግሎት ባለሙያ",
-    },
-    "ደበሎ ሀይሉ": {
-        "id": "EMP007",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የነዋሪነት አገልግሎት ባለሙያ",
-    },
-    "ንግስት ግቶሬ": {
-        "id": "EMP008",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የነዋሪነት አገልግሎት ባለሙያ",
-    },
-    "ጀመረ ከበደ": {
-        "id": "EMP009",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የክብር መዝገብ ሹም",
-    },
-    "ባይሳ ደበሎ": {
-        "id": "EMP0010",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የክብር መዝገብ ሹም",
-    },
-    "መስከረም ብርሀኔ": {
-        "id": "EMP0011",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የክብር መዝገብ ሹም",
-    },
-    "አባቦ ፍቃዱ": {
-        "id": "EMP0012",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የክብር መዝገብ ሹም",
-    },
-    "ዳግማዊት ግርማ": {
-        "id": "EMP0013",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የክብር መዝገብ ሹም",
-    },
-    "ደሳለኝ ፀጋዬ": {
-        "id": "EMP0014",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የፋይናንስ ባለሙያ",
-    },
-    "ዘወትር ታምሩ": {
-        "id": "EMP0015",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የፋይናንስ ባለሙያ",
-    },
-    "መሰረት ምስጋናው": {
-        "id": "EMP0016",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የህትመት ስርጭት ቁጥጥር ባለሙያ",
-    },
-    "ፀሀይነሽ ስጦታው": {
-        "id": "EMP0017",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የህትመት ስርጭት ቁጥጥር ባለሙያ",
-    },
-    "አስማሩ አካሌ": {
-        "id": "EMP0018",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የሪከርድና ማህደር ባለሙያ",
-    },
-    "አዝመራ ሁሴን": {
-        "id": "EMP0019",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "የሪከርድና ማህደር ባለሙያ",
-    },
-    "ስንዱ ካሳሁን": {
-        "id": "EMP0020",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "ሴክሬታሪያት",
-    },
-    "ናትናኤል ታደለ": {
-        "id": "EMP0021",
-        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
-        "admin": "ሰለሞን ተስፋዬ",
-        "dept": "የመረጃ ቴክኖሎጂ ጥገና ባለሙያ",
-    },
-    "አስናቀች": {
-        "id": "EMP0022",
-        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
-        "admin": "ሰለሞን ተስፋዬ",
-        "dept": "ሴክሬታሪያት",
-    },
-}
+DB_NAME = "attendance_system_v10.db"
 
 def init_sqlite_db():
     conn = sqlite3.connect(DB_NAME)
@@ -188,6 +52,17 @@ def init_sqlite_db():
             timestamp TEXT
         )
     ''')
+
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS employees (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE,
+            emp_id TEXT UNIQUE,
+            office TEXT,
+            dept TEXT,
+            admin_name TEXT
+        )
+    ''')
     
     default_admins = [
         ("superadmin", "super08password", "ሁሉም ቢሮዎች", "ዋና አድሚን (Super Admin)"),
@@ -196,6 +71,35 @@ def init_sqlite_db():
     ]
     for adm in default_admins:
         c.execute("INSERT OR IGNORE INTO admins (username, password, office, role) VALUES (?, ?, ?, ?)", adm)
+
+    # Initial Default Employees based on Civil Registration
+    initial_employees = [
+        ("ፈንታሁን ካሳሁን አሊ", "EMP001", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የሲቪል ምዝገባ ቡድን መሪ", "ዘረአብርሃም ሙሉጌታ"),
+        ("ደጉ ማርቆስ", "EMP002", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የነዋሪነት አገልግሎት ቡድን መሪ", "ዘረአብርሃም ሙሉጌታ"),
+        ("ትግስት ተሊላ", "EMP003", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የሪከርድና ማህደር ህትመት ስርጭት ቁጥጥር ቡድን መሪ", "ዘረአብርሃም ሙሉጌታ"),
+        ("መላኩ ቤዛው", "EMP004", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የነዋሪነት አገልግሎት ባለሙያ", "ዘረአብርሃም ሙሉጌታ"),
+        ("ዘላለም አዲስ", "EMP005", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የነዋሪነት አገልግሎት ባለሙያ", "ዘረአብርሃም ሙሉጌታ"),
+        ("መገርሳ ኦሊቃ", "EMP006", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የነዋሪነት አገልግሎት ባለሙያ", "ዘረአብርሃም ሙሉጌታ"),
+        ("ደበሎ ሀይሉ", "EMP007", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የነዋሪነት አገልግሎት ባለሙያ", "ዘረአብርሃም ሙሉጌታ"),
+        ("ንግስት ግቶሬ", "EMP008", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የነዋሪነት አገልግሎት ባለሙያ", "ዘረአብርሃም ሙሉጌታ"),
+        ("ጀመረ ከበደ", "EMP009", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የክብር መዝገብ ሹም", "ዘረአብርሃም ሙሉጌታ"),
+        ("ባይሳ ደበሎ", "EMP0010", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የክብር መዝገብ ሹም", "ዘረአብርሃም ሙሉጌታ"),
+        ("መስከረም ብርሀኔ", "EMP0011", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የክብር መዝገብ ሹም", "ዘረአብርሃም ሙሉጌታ"),
+        ("አባቦ ፍቃዱ", "EMP0012", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የክብር መዝገብ ሹም", "ዘረአብርሃም ሙሉጌታ"),
+        ("ዳግማዊት ግርማ", "EMP0013", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የክብር መዝገብ ሹም", "ዘረአብርሃም ሙሉጌታ"),
+        ("ደሳለኝ ፀጋዬ", "EMP0014", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የፋይናንስ ባለሙያ", "ዘረአብርሃም ሙሉጌታ"),
+        ("ዘወትር ታምሩ", "EMP0015", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የፋይናንስ ባለሙያ", "ዘረአብርሃም ሙሉጌታ"),
+        ("መሰረት ምስጋናው", "EMP0016", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የህትመት ስርጭት ቁጥጥር ባለሙያ", "ዘረአብርሃም ሙሉጌታ"),
+        ("ፀሀይነሽ ስጦታው", "EMP0017", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የህትመት ስርጭት ቁጥጥር ባለሙያ", "ዘረአብርሃም ሙሉጌታ"),
+        ("አስማሩ አካሌ", "EMP0018", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የሪከርድና ማህደር ባለሙያ", "ዘረአብርሃም ሙሉጌታ"),
+        ("አዝመራ ሁሴን", "EMP0019", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "የሪከርድና ማህደር ባለሙያ", "ዘረአብርሃም ሙሉጌታ"),
+        ("ስንዱ ካሳሁን", "EMP0020", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "ሴክሬታሪያት", "ዘረአብርሃም ሙሉጌታ"),
+        ("ናትናኤል ታደለ", "EMP0021", "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)", "የመረጃ ቴክኖሎጂ ጥገና ባለሙያ", "ሰለሞን ተስፋዬ"),
+        ("አስናቀች", "EMP0022", "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)", "ሴክሬታሪያት", "ሰለሞን ተስፋዬ"),
+    ]
+    for emp in initial_employees:
+        c.execute("INSERT OR IGNORE INTO employees (name, emp_id, office, dept, admin_name) VALUES (?, ?, ?, ?, ?)", emp)
+
     conn.commit()
     conn.close()
 
@@ -281,6 +185,23 @@ str_lit.markdown("""
 str_lit.title("🏛️ የንፋስ ስልክ ላፍቶ ክፍለ ከተማ ወረዳ 08 አቴንዳንስ ሲስተም")
 
 tabs = str_lit.tabs(["✍️ ግቢ/ውጣ ምዝገባ", "🔲 QR ኮድ ማመንጫ", "📊 አድሚን ዳሽቦርድ እና ማጽደቂያ"])
+
+# Fetch dynamic employees from database
+def fetch_employees_dict():
+    conn = sqlite3.connect(DB_NAME)
+    df_emp = pd.read_sql("SELECT name, emp_id, office, dept, admin_name FROM employees", conn)
+    conn.close()
+    emps = {}
+    for _, row in df_emp.iterrows():
+        emps[row['name']] = {
+            "id": row['emp_id'],
+            "office": row['office'],
+            "dept": row['dept'],
+            "admin": row['admin_name']
+        }
+    return emps
+
+EMPLOYEES_DATABASE = fetch_employees_dict()
 
 # ----------------- TAB 1: Attendance Registration -----------------
 with tabs[0]:
@@ -498,6 +419,7 @@ with tabs[2]:
         admin_tabs = str_lit.tabs([
             "📥 የምዝገባ ማጽደቂያ", 
             "📈 ሪፖርቶች እና ማጣሪያ", 
+            "👥 ሰራተኞች ማስተዳደሪያ", 
             "💬 የመልዕክት ሳጥን (Messages)", 
             "⚙️ አድሚኖች ማስተዳደሪያ"
         ])
@@ -638,8 +560,71 @@ with tabs[2]:
             else:
                 str_lit.info("📊 በዚህ የጊዜ ገደብ ውስጥ ምንም የጸደቀ መረጃ የለም።")
 
-        # TAB 3.3: Messaging Center
+        # TAB 3.3: Employees Management (Add Civil Registration Employee & Delete Employee)
         with admin_tabs[2]:
+            str_lit.subheader("👥 ሰራተኞች ማስተዳደሪያ ማዕከል (በሲቪል ምዝገባ እና የነዋሪነት አገልግሎት መሠረት)")
+            
+            emp_sub_tabs = str_lit.tabs(["➕ አዲስ ሰራተኛ መዝግብ", "🗑️ ሰራተኛ ሰርዝ (Delete)"])
+
+            with emp_sub_tabs[0]:
+                with str_lit.form("register_civil_employee_form"):
+                    str_lit.markdown("#### አዲስ ሰራተኛ በሲቪል ምዝገባ እና የነዋሪነት አገልግሎት መዋቅር መመዝገቢያ ፎርም")
+                    new_emp_name = str_lit.text_input("የሰራተኛ ሙሉ ስም")
+                    new_emp_id = str_lit.text_input("ሰራተኛ መታወቂያ (e.g., EMP023)")
+                    
+                    civil_office_default = "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)"
+                    new_emp_office = str_lit.selectbox("ቢሮ", [
+                        civil_office_default,
+                        "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)"
+                    ])
+                    
+                    new_emp_dept = str_lit.text_input("የስራ መደብ / ቡድን (Department / Role)", "የነዋሪነት አገልግሎት ባለሙያ")
+                    new_emp_admin = str_lit.text_input("የኃላፊው ስም (Admin Name)", "ዘረአብርሃም ሙሉጌታ")
+                    
+                    submit_new_emp = str_lit.form_submit_button("💾 ሰራተኛውን መዝግብ")
+                    if submit_new_emp:
+                        if new_emp_name and new_emp_id and new_emp_dept:
+                            try:
+                                conn = sqlite3.connect(DB_NAME)
+                                c = conn.cursor()
+                                c.execute("INSERT INTO employees (name, emp_id, office, dept, admin_name) VALUES (?, ?, ?, ?, ?)",
+                                          (new_emp_name, new_emp_id, new_emp_office, new_emp_dept, new_emp_admin))
+                                conn.commit()
+                                conn.close()
+                                str_lit.success(f"✅ ሰራተኛ ({new_emp_name}) በሲቪል ምዝገባ እና የነዋሪነት አገልግሎት መዋቅር ተመዝግቧል!")
+                            except sqlite3.IntegrityError:
+                                str_lit.error("❌ ይህ ሰራተኛ ወይም መታወቂያ ቀደም ሲል በሲስተሙ ውስጥ አለ!")
+                        else:
+                            str_lit.error("❌ እባክዎ ሁሉንም አስፈላጊ መስኮች በትክክል ይሙሉ!")
+
+            with emp_sub_tabs[1]:
+                str_lit.markdown("#### ከስራ የለቀቁ ወይም የወጡ ሰራተኞችን ከሲስተም ማስወገጃ")
+                conn = sqlite3.connect(DB_NAME)
+                current_emps_df = pd.read_sql("SELECT name, emp_id, office, dept FROM employees", conn)
+                conn.close()
+
+                if not current_emps_df.empty:
+                    target_emp_to_delete = str_lit.selectbox("ሊሰረዝ የሚገባውን ሰራተኛ ይምረጡ", current_emps_df['name'].tolist())
+                    if str_lit.button("🗑️ ሰራተኛውን ከሲስተም ሰርዝ", type="primary"):
+                        conn = sqlite3.connect(DB_NAME)
+                        c = conn.cursor()
+                        c.execute("DELETE FROM employees WHERE name = ?", (target_emp_to_delete,))
+                        conn.commit()
+                        conn.close()
+                        str_lit.success(f"✅ ሰራተኛ ({target_emp_to_delete}) ከሲስተሙ ተሰርዟል!")
+                        str_lit.rerun()
+                else:
+                    str_lit.info("📭 በሲስተሙ ውስጥ ምንም የተመዘገበ ሰራተኛ የለም።")
+
+            str_lit.markdown("---")
+            str_lit.subheader("📋 አሁን ያሉ ሰራተኞች ዝርዝር")
+            conn = sqlite3.connect(DB_NAME)
+            all_emps_table = pd.read_sql("SELECT name, emp_id, office, dept, admin_name FROM employees", conn)
+            conn.close()
+            str_lit.dataframe(all_emps_table, use_container_width=True)
+
+        # TAB 3.4: Messaging Center
+        with admin_tabs[3]:
             str_lit.subheader("💬 የውስጥ መልዕክት መለዋወጫ ማዕከል (Messages)")
             
             with str_lit.form("send_msg_form"):
@@ -670,14 +655,14 @@ with tabs[2]:
             else:
                 str_lit.info("📭 እስካሁን የተመዘገበ ምንም መልዕክት የለም።")
 
-        # TAB 3.4: Admin Management (Add, Update Role, Delete, Password Confirmation)
-        with admin_tabs[3]:
+        # TAB 3.5: Admin Management (Add, Super Admin Reset Password, Delete, Roles)
+        with admin_tabs[4]:
             if str_lit.session_state.admin_username == "superadmin":
-                str_lit.subheader("⚙️ አድሚኖች ማስተዳደሪያ እና መፍጠሪያ ማዕከል")
+                str_lit.subheader("⚙️ አድሚኖች ማስተዳደሪያ እና ሱፐር አድሚን ፓስወርድ ማደሻ ማዕከል")
                 
-                admin_sub_tabs = str_lit.tabs(["➕ አዲስ አድሚን ጨምር", "🔄 ሮል/ፓስወርድ አዘምን (Update)", "🗑️ አድሚን ሰርዝ (Delete)"])
+                admin_sub_tabs = str_lit.tabs(["➕ አዲስ አድሚን ጨምር", "🔄 የሱፐር አድሚን ፓስወርድ ማደሻ (Reset)", "🗑️ አድሚን ሰርዝ (Delete)"])
                 
-                # 1. Add Admin with Password Confirmation
+                # 1. Add Admin
                 with admin_sub_tabs[0]:
                     with str_lit.form("new_admin_form"):
                         new_user = str_lit.text_input("አዲስ ዩዘርኔም (Username)")
@@ -694,7 +679,7 @@ with tabs[2]:
                         if submit_admin:
                             if new_user and new_pass and new_pass_confirm:
                                 if new_pass != new_pass_confirm:
-                                    str_lit.error("❌ ያስገቧቸው ፓስወርዶች አይመሳሰሉም! እባክዎ እንደገና ይሞክሩ።")
+                                    str_lit.error("❌ ያስገቧቸው ፓስወርዶች አይመሳሰሉም!")
                                 else:
                                     try:
                                         conn = sqlite3.connect(DB_NAME)
@@ -704,38 +689,36 @@ with tabs[2]:
                                         conn.close()
                                         str_lit.success(f"✅ አዲሱ አድሚን ({new_user}) በተሳካ ሁኔታ ተፈጥሯል!")
                                     except sqlite3.IntegrityError:
-                                        str_lit.error("❌ ይህ ዩዘርኔም ቀደም ሲል አለ፤ እባክዎ වෙන ስም ይጠቀሙ።")
+                                        str_lit.error("❌ ይህ ዩዘርኔም ቀደም ሲል አለ!")
                             else:
-                                str_lit.error("❌ እባክዎ ሁሉንም መስኮች በትክክል ይሙሉ!")
+                                str_lit.error("❌ እባክዎ ሁሉንም መስኮች ይሙሉ!")
 
-                # 2. Update Role / Password
+                # 2. Super Admin Reset Any Admin Password
                 with admin_sub_tabs[1]:
+                    str_lit.markdown("#### 🔑 የሱፐር አድሚን ፓስወርድ ማስተካከያ (ለየትኛውም አድሚን)")
                     conn = sqlite3.connect(DB_NAME)
-                    admins_list_df = pd.read_sql("SELECT username FROM admins", conn)
+                    all_admins_df = pd.read_sql("SELECT username FROM admins", conn)
                     conn.close()
-                    
-                    update_target = str_lit.selectbox("ሊስተካከል የሚገባው አድሚን ዩዘርኔም", admins_list_df['username'].tolist() if not admins_list_df.empty else [])
-                    
-                    if update_target:
-                        with str_lit.form("update_admin_form"):
-                            up_role = str_lit.text_input("አዲስ ሮል/ኃላፊነት መግለጫ", "አዲስ ሮል")
-                            up_pass = str_lit.text_input("አዲስ ፓስወርድ (ከተፈለገ)", type="password")
-                            up_pass_conf = str_lit.text_input("አዲስ ፓስወርድ ደግመህ አስገባ", type="password")
-                            
-                            update_btn = str_lit.form_submit_button("🔄 አድሚን አዘምን (Update)")
-                            if update_btn:
-                                if up_pass and (up_pass != up_pass_conf):
+
+                    target_admin_reset = str_lit.selectbox("ፓስወርዱ የሚቀየርለት አድሚን ዩዘርኔም", all_admins_df['username'].tolist() if not all_admins_df.empty else [])
+                    with str_lit.form("super_reset_form"):
+                        super_new_pass = str_lit.text_input("አዲስ ፓስወርድ", type="password")
+                        super_new_pass_conf = str_lit.text_input("አዲስ ፓስወርድ ደግመህ አስገባ", type="password")
+                        
+                        super_reset_btn = str_lit.form_submit_button("🔄 ፓስወርድ አድስ (Super Admin Reset)")
+                        if super_reset_btn:
+                            if super_new_pass and super_new_pass_conf:
+                                if super_new_pass != super_new_pass_conf:
                                     str_lit.error("❌ አዲሶቹ ፓስወርዶች አይመሳሰሉም!")
                                 else:
                                     conn = sqlite3.connect(DB_NAME)
                                     c = conn.cursor()
-                                    if up_pass:
-                                        c.execute("UPDATE admins SET role = ?, password = ? WHERE username = ?", (up_role, up_pass, update_target))
-                                    else:
-                                        c.execute("UPDATE admins SET role = ? WHERE username = ?", (up_role, update_target))
+                                    c.execute("UPDATE admins SET password = ? WHERE username = ?", (super_new_pass, target_admin_reset))
                                     conn.commit()
                                     conn.close()
-                                    str_lit.success(f"✅ የ ({update_target}) መረጃ በተሳካ ሁኔታ ተዘምኗል!")
+                                    str_lit.success(f"✅ የ ({target_admin_reset}) ፓስወርድ በሱፐር አድሚን ተቀይሯል!")
+                            else:
+                                str_lit.error("❌ እባክዎ ሁሉንም መስኮች ይሙሉ!")
 
                 # 3. Delete Admin
                 with admin_sub_tabs[2]:
