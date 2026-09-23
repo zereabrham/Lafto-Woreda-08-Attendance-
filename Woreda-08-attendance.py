@@ -3,149 +3,532 @@ from datetime import datetime, timedelta
 import pandas as pd
 import sqlite3
 import io
+import zipfile
 
-DB_NAME = "attendance_system_v10.db"
+# ለ PDF ማመንጫ ሪፖርት የሚያስፈልጉ లైብራሪዎች
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
+
+DB_NAME = "attendance_system_v34.db"
 
 DEFAULT_EMPLOYEES = {
     "ፈንታሁን ካሳሁን አሊ": {
-        "id": "EMP001",
+        "id": "001",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የሲቪል ምዝገባ ቡድን መሪ",
     },
-    "ደጉ ማርቆስ": {
-        "id": "EMP002",
+    "ደጉ ማርቆስ ሀርሲሶ": {
+        "id": "002",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የነዋሪነት አገልግሎት ቡድን መሪ",
     },
-    "ትግስት ተሊላ": {
-        "id": "EMP003",
+    "ትግስት ተሊላ ብሩ": {
+        "id": "003",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የሪከርድና ማህደር ህትመት ስርጭት ቁጥጥር ቡድን መሪ",
     },
-    "መላኩ ቤዛው": {
-        "id": "EMP004",
+    "መላኩ ቤዛው ጋሹ": {
+        "id": "004",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የነዋሪነት አገልግሎት ባለሙያ",
     },
-    "ዘላለም አዲስ": {
-        "id": "EMP005",
+    "ዘላለም አዲስ ፀጋ": {
+        "id": "005",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የነዋሪነት አገልግሎት ባለሙያ",
    },
-    "መገርሳ ኦሊቃ": {
-        "id": "EMP006",
+    "መገርሳ ኦሊቃ ጫላ": {
+        "id": "006",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የነዋሪነት አገልግሎት ባለሙያ",
     },
-    "ደበሎ ሀይሉ": {
-        "id": "EMP007",
+    "ደበሎ ሀይሉ አዴባ": {
+        "id": "007",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የነዋሪነት አገልግሎት ባለሙያ",
     },
-    "ንግስት ግቶሬ": {
-        "id": "EMP008",
+    "ንግስት ግቶሬ ግንጃ": {
+        "id": "008",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የነዋሪነት አገልግሎት ባለሙያ",
     },
-    "ጀመረ ከበደ": {
-        "id": "EMP009",
+    "ጀመረ ከበደ በላይነህ": {
+        "id": "009",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የክብር መዝገብ ሹም",
     },
-    "ባይሳ ደበሎ": {
-        "id": "EMP0010",
+    "ባይሳ ደበሎ ዴሲሳ": {
+        "id": "010",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የክብር መዝገብ ሹም",
     },
-    "መስከረም ብርሀኔ": {
-        "id": "EMP0011",
+    "መስከረም ብርሀኔ ውበቴ": {
+        "id": "011",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የክብር መዝገብ ሹም",
     },
-    "አባቦ ፍቃዱ": {
-        "id": "EMP0012",
+    "አባቦ ፍቃዱ ባዬ": {
+        "id": "012",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የክብር መዝገብ ሹም",
     },
-    "ዳግማዊት ግርማ": {
-        "id": "EMP0013",
+    "ዳግማዊት ግርማ ጋረደው": {
+        "id": "013",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የክብር መዝገብ ሹም",
     },
-    "ደሳለኝ ፀጋዬ": {
-        "id": "EMP0014",
+    "ደሳለኝ ፀጋዬ በቀለ": {
+        "id": "014",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የፋይናንስ ባለሙያ",
     },
-    "ዘወትር ታምሩ": {
-        "id": "EMP0015",
+    "ዘወትር ታምሩ በላቸው": {
+        "id": "015",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የፋይናንስ ባለሙያ",
     },
-    "መሰረት ምስጋናው": {
-        "id": "EMP0016",
+    "መሰረት ምስጋናው ተስፋዬ": {
+        "id": "016",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የህትመት ስርጭት ቁጥጥር ባለሙያ",
     },
-    "ፀሀይነሽ ስጦታው": {
-        "id": "EMP0017",
+    "ፀሀይነሽ ስጦታው ቦጋለ": {
+        "id": "017",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የህትመት ስርጭት ቁጥጥር ባለሙያ",
     },
-    "አስማሩ አካሌ": {
-        "id": "EMP0018",
+    "አስማሩ አካሌ በላይ": {
+        "id": "018",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የሪከርድና ማህደር ባለሙያ",
     },
-    "አዝመራ ሁሴን": {
-        "id": "EMP0019",
+    "አዝመራ ሁሴን አደም": {
+        "id": "019",
         "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የሪከርድና ማህደር ባለሙያ",
     },
-    "ስንዱ ካሳሁን": {
-        "id": "EMP0020",
-        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-        "admin": "ዘረአብርሃም ሙሉጌታ",
-        "dept": "ሴክሬታሪያት",
-    },
-    "ናትናኤል ታደለ": {
-        "id": "EMP0021",
+    "አለምነሽ መንገሻ በየነ": {
+        "id": "021",
         "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
         "admin": "ሰለሞን ተስፋዬ",
-        "dept": "የመረጃ ቴክኖሎጂ ጥገና ባለሙያ",
+        "dept": "የመንግስት ህንፃና ንብረት አስተዳደር ቡድን አስተባባሪ",
     },
-    "አስናቀች": {
-        "id": "EMP0022",
+    "ጥሪት ሀይሉ ለገሰ": {
+        "id": "022",
         "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
         "admin": "ሰለሞን ተስፋዬ",
-        "dept": "ሴክሬታሪያት",
+        "dept": "የንብረትና ጠቅላላ አገልግሎት ቡድን መሪ I",
     },
+    "ፍቅርተ በቀለ አለምነገር": {
+        "id": "023",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የእቃ ግምጃ ቤት ሃላፊ",
+    },
+    "አስቴር ገብሩ መኩሪያ": {
+        "id": "024",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የእቃ ግምጃ ቤት ሃላፊ",
+    },
+    "ቆንጅት ለገሰ ገመዳ": {
+        "id": "025",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የአትክልተኛ",
+    },
+    "ብዙነሽ ከበደ ደጋጋ": {
+        "id": "026",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የአትክልተኛ",
+    },
+    "ውብአንቺ ሀደራ ፀጋዬ": {
+        "id": "027",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "ጽዳትና ተላላኪ",
+    },
+    "ሀረገወይን አባተ አደራው": {
+        "id": "028",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "ጽዳትና ተላላኪ",
+    },
+    "ቃልኪዳን በስፋት አበራ": {
+        "id": "029",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "ጽዳትና ተላላኪ",
+    },
+    "ብርቱካን ዘውዴ ወሰኔ": {
+        "id": "030",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "ጽዳትና ተላላኪ",
+    },
+    "ገንዘብ ዘገየ አበበ": {
+        "id": "031",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "ጽዳትና ተላላኪ",
+    },
+    "ንግስት ታምሩ ወንዴ": {
+        "id": "032",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "ጽዳትና ተላላኪ",
+    },
+    "መቅደስ አለፈ መኩሪያ": {
+        "id": "033",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የእቅድና በጀት ዝግጅት ክትትልና ግምገማ II",
+    },
+    "ቤተልሄም አለማየሁ": {
+        "id": "034",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የኦዲት ባለሙያ IV",
+    },
+    "አስቴር ሆራ": {
+        "id": "035",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የኦዲት ባለሙያ IV",
+    },
+    "አበሩ ማሞ አስማማው": {
+        "id": "036",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "ኮምፒውተር ጥገና ባለሙያ III",
+    },
+    "ቃልኪዳን ዳምጠዉ ለታ": {
+        "id": "037",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "ስነ ምግባርና ፀረ ሙስና ባለሙያ IV",
+    },
+    "ንፁህ አስረስ ተረፈ": {
+        "id": "038",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "ጽዳትና ተላላኪ ሰራተኛ",
+    },
+    "የሺመቤት አዲስ አላምረው": {
+        "id": "039",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "ጽዳትና ተላላኪ ሰራተኛ",
+    },
+    "ዙሪያሽ አያሌው መኩሪያ": {
+        "id": "040",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የህፃናት ድጋፍና እንክብካቤ ሰራተኛ",
+    },
+    "መድና ፈድሉ ህሽን": {
+        "id": "041",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የህፃናት ድጋፍና እንክብካቤ ሰራተኛ",
+    },
+    "ዲቢሴ መላኩ ዋቶለ": {
+        "id": "042",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "ጽዳትና ተላላኪ ሰራተኛ",
+    },
+    "እማዋይሽ አብርሃም ታሪኩ": {
+        "id": "043",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "ጽዳትና ተላላኪ ሰራተኛ",
+    },
+    "አብይ ሸምሊ": {
+        "id": "044",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የእቅድ በጀት ዝግጅትና ክትትልና ግምገማ ባለሙያ III",
+    },
+    "ትዕግስት ተስፋዪ ዘርጋባቸው": {
+        "id": "045",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የቅሬታና አቤቱታ አፈጻጸም ክትትልልና ድጋፍ ባለሙያ III",
+    },
+    "ሄለን ሙሉጌታ ገ/እግዛብሄር": {
+        "id": "046",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የሽፔሳል ፕላን ክጽጽል አፈጸጸም II",
+    },
+    "ትምህርቱ ዘርጋው አርጋ": {
+        "id": "047",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የእቅድ ዝግጅት ክትትልና ግምገማ ቡድን መሪ II",
+    },
+    "ከድር ሆርዶፋ ገመዳ": {
+        "id": "048",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የውስጥ ኦዲት ቡድን መሪ",
+    },
+    "አየነው ዘገየ እጅጉ": {
+        "id": "049",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የኦዲት ባለሙያ IV",
+    },
+    "ናትናኤል ታደለ ገብሬ": {
+        "id": "050",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የኮምፒውተር ጥገና ባለሙያ II",
+    },
+    "እሸቴ መዋህ ረታ": {
+        "id": "051",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የጥበቃ ሰራተኛ I",
+    },
+    "በቀለ ቶሎሳ ዋር": {
+        "id": "053",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የጥበቃ ሰራተኛ I",
+    },
+    "ደሜ ኤባ አሸና": {
+        "id": "054",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የጥበቃ ሰራተኛ I",
+    },
+    "የማነ በሪሁን ይህደጎ": {
+        "id": "055",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የጥበቃ ሰራተኛ I",
+    },
+    "አሳልፈው ጫኔ ፈለቀ": {
+        "id": "056",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የስነ ምግባርና ፀረ ሙስና ቡድን መሪ",
+    },
+    "አጉማሴ በለጠ አስረስ": {
+        "id": "057",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የስነ ምግባርና ፀረ ሙስና ቡድን መሪ",
+    },
+    "አብዮት ተፈራ ጎበና": {
+        "id": "058",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የቅሬታና አቤቱታ አፈጻጸም ክትትልልና ድጋፍ ባለሙያ III",
+    },
+    "ቤሩት ተሰማ ደምሴ": {
+        "id": "059",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የቅሬታና አቤቱታ ምርመራ ባለሙያ I",
+    },
+    "እመቤት አሰፋ አበበ": {
+        "id": "060",
+        "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+        "admin": "ሰለሞን ተስፋዬ",
+        "dept": "የስርዓተ ጾታ ጉዳዮች የሴቶች ተሳትፎና ተጠቃሚነት ቡድን መሪ",
+    },
+    "መኳንንት እባቡ ተገኝ": {
+        "id": "061",
+        "office": "ቢሮ ቁጥር 03 (የሰው ሀብትና ፐብሊክ ሰርቪስ ቢሮ)",
+        "admin": "አለም ጌታሁን",
+        "dept": "የሰው ሀብት አስተዳደር ቡድን መሪ",
+    },
+    "ብርሀኔ ቦጋለ ወልዴ": {
+        "id": "062",
+        "office": "ቢሮ ቁጥር 03 (የሰው ሀብትና ፐብሊክ ሰርቪስ ቢሮ)",
+        "admin": "አለም ጌታሁን",
+        "dept": "የሪከርድና ማህደር ሰራተኛ III",
+    },
+    "አረጋኸኝ ድንቁ ወ/መድህን": {
+        "id": "063",
+        "office": "ቢሮ ቁጥር 03 (የሰው ሀብትና ፐብሊክ ሰርቪስ ቢሮ)",
+        "admin": "አለም ጌታሁን",
+        "dept": "የአገልግሎት አሰጣጥ ኦዲት እና ምዘና ቡድ መሪ",
+    },
+    "ገነት አሰፋ ከበደ": {
+        "id": "064",
+        "office": "ቢሮ ቁጥር 03 (የሰው ሀብትና ፐብሊክ ሰርቪስ ቢሮ)",
+        "admin": "አለም ጌታሁን",
+        "dept": "የሪከርድ ማህደር ሰራተኛ",
+    },
+    "አያል በላይ መንግስቱ": {
+        "id": "065",
+        "office": "ቢሮ ቁጥር 03 (የሰው ሀብትና ፐብሊክ ሰርቪስ ቢሮ)",
+        "admin": "አለም ጌታሁን",
+        "dept": "የሪፎሪም ክትትል ድገፍ ባለሙያ III",
+    },
+    "ተስፋ ጌትነት አያሌው": {
+        "id": "066",
+        "office": "ቢሮ ቁጥር 03 (የሰው ሀብትና ፐብሊክ ሰርቪስ ቢሮ)",
+        "admin": "አለም ጌታሁን",
+        "dept": "የሰው ሃይል ሰራተኛ IV",
+    },
+    "ፌኔት ተስፋዮ ደገፉ": {
+        "id": "067",
+        "office": "ቢሮ ቁጥር 05 (ሴቶችና ህፃናት ቢሮ)",
+        "admin": "ሶሊያና ጥሩነህ",
+        "dept": "የህፃናት ጥበቃ ድጋፍና እንክብካቤ ባለሙያ IV",
+    },
+    "ገነት ባሳ አንጃጀ": {
+        "id": "068",
+        "office": "ቢሮ ቁጥር 05 (ሴቶችና ህፃናት ቢሮ)",
+        "admin": "ሶሊያና ጥሩነህ",
+        "dept": "የማህበራዊ ጥበቃ ማስተባበሪያ መከታተያ ቡድን",
+    },
+    "ሐይማኖት ምንወጋው ገዛኸኝ": {
+        "id": "069",
+        "office": "ቢሮ ቁጥር 05 (ሴቶችና ህፃናት ቢሮ)",
+        "admin": "ሶሊያና ጥሩነህ",
+        "dept": "የመረጃ አደረጃጀትና ትንተና ባለሙያ III",
+    },
+    "ብርሀን ደስታ በላይ": {
+        "id": "070",
+        "office": "ቢሮ ቁጥር 05 (ሴቶችና ህፃናት ቢሮ)",
+        "admin": "ሶሊያና ጥሩነህ",
+        "dept": "የማህበራዊ ሴፍቲኔትና ኑሮ ማሻሻያ ባለሙያ III",
+    },
+    "ሰላም ፍጄ በሠፓ": {
+        "id": "071",
+        "office": "ቢሮ ቁጥር 05 (ሴቶችና ህፃናት ቢሮ)",
+        "admin": "ሶሊያና ጥሩነህ",
+        "dept": "የስርዓተ ፆታ ጉዳይና የሴቶች ተሳትፎ ተጠቃሚነት ባለሙያ II",
+    },
+    "ጀሚላ አደም ገመቹ": {
+        "id": "072",
+        "office": "ቢሮ ቁጥር 05 (ሴቶችና ህፃናት ቢሮ)",
+        "admin": "ሶሊያና ጥሩነህ",
+        "dept": "የማህበራዊ ሴፍቲኔት ኑሮ ማሻሻያ ባለሙያ I",
+    },
+    "መሰረት ተስፋዬ ገላሼ": {
+        "id": "073",
+        "office": "ቢሮ ቁጥር 05 (ሴቶችና ህፃናት ቢሮ)",
+        "admin": "ሶሊያና ጥሩነህ",
+        "dept": "የማህበራዊ ሴፍቲኔት ኑሮ ማሻሻያ ባለሙያ IV",
+    },
+    "ህሊና ሰብስቤ ደስታ": {
+        "id": "074",
+        "office": "ቢሮ ቁጥር 05 (ሴቶችና ህፃናት ቢሮ)",
+        "admin": "ሶሊያና ጥሩነህ",
+        "dept": "በቀዳማዊ ልጅነት እድገት ማዕከላት መቋቋም ማዕከላት ማስፋፋት አገልግሎት አሰጣጥ ክትትል ባለሙያ IV",
+    },
+    "ስመኝ ደስታ ሀይሌ": {
+        "id": "075",
+        "office": "ቢሮ ቁጥር 05 (ሴቶችና ህፃናት ቢሮ)",
+        "admin": "ሶሊያና ጥሩነህ",
+        "dept": "የማህበራዊ ጥበቃ ባለሙያ III",
+    },
+    "ወንድወሰን ሙላቱ አሊ": {
+        "id": "076",
+        "office": "ቢሮ ቁጥር 05 (ሴቶችና ህፃናት ቢሮ)",
+        "admin": "ሶሊያና ጥሩነህ",
+        "dept": "የህፃናት መብት ድጋፍ ክብካቤ ቀዳማዊ ልጅነት ዕድገትቡድን መሪ",
+    },
+    "ቴዎድሮስ ሰለሞን ተሰማ": {
+        "id": "077",
+        "office": "ቢሮ ቁጥር 05 (ሴቶችና ህፃናት ቢሮ)",
+        "admin": "ሶሊያና ጥሩነህ",
+        "dept": "የስርዓተ ጾታ ጉዳይና የሴቶች ተሳትፎና ተጠቃሚነት ባለሙያ IV",
+    },
+    "መንበሩ ሀይሉ ተሾመ": {
+        "id": "078",
+        "office": "ቢሮ ቁጥር 05 (ሴቶችና ህፃናት ቢሮ)",
+        "admin": "ሶሊያና ጥሩነህ",
+        "dept": "የማህበራዊ ሴፍቲኔት ኑሮ ማሻሻያ ቡድን አስተባባሪ",
+    },
+    "ሀረገወይን ጌታሁን ቱሪ": {
+        "id": "079",
+        "office": "ቢሮ ቁጥር 04 (የፋይናንስ ቢሮ)",
+        "admin": "በለጠ ፍቃዱ",
+        "dept": "ረዳት ገንዘብ ያዥ I",
+    },
+    "ጤናዪ ዘውዱ ጥላሁን": {
+        "id": "080",
+        "office": "ቢሮ ቁጥር 04 (የፋይናንስ ቢሮ)",
+        "admin": "በለጠ ፍቃዱ",
+        "dept": "የፋይናንስ ቡድን መሪ II",
+    },
+    "ዮርዳኖስ አስመላሽ አረጋኸኝ": {
+        "id": "081",
+        "office": "ቢሮ ቁጥር 04 (የፋይናንስ ቢሮ)",
+        "admin": "በለጠ ፍቃዱ",
+        "dept": "የግዥ ባለሙያ III",
+    },
+    "ሉባባ የሱፍ ሲራጅ": {
+        "id": "082",
+        "office": "ቢሮ ቁጥር 04 (የፋይናንስ ቢሮ)",
+        "admin": "በለጠ ፍቃዱ",
+        "dept": "የረዳት ገንዘብ ያዥ I",
+    },
+    "ዙርያሽ ይርጋ መሐመድ": {
+        "id": "083",
+        "office": "ቢሮ ቁጥር 04 (የፋይናንስ ቢሮ)",
+        "admin": "በለጠ ፍቃዱ",
+        "dept": "አካውንታንት II",
+    },
+    "ዳንኤል ገ/ህይወት መረሳ": {
+        "id": "085",
+        "office": "ቢሮ ቁጥር 04 (የፋይናንስ ቢሮ)",
+        "admin": "በለጠ ፍቃዱ",
+        "dept": "አካውንታንት IV",
+    },
+    "ጌቱ ከተማ ዘውዴ": {
+        "id": "086",
+        "office": "ቢሮ ቁጥር 04 (የፋይናንስ ቢሮ)",
+        "admin": "በለጠ ፍቃዱ",
+        "dept": "አካውንታንት III",
+    },
+    "ሙሉአለም ካሳሁን አየለ": {
+        "id": "087",
+        "office": "ቢሮ ቁጥር 04 (የፋይናንስ ቢሮ)",
+        "admin": "በለጠ ፍቃዱ",
+        "dept": "የግዢ ቡድን መሪ II",
+    },
+    "ተስፋዬ ቀነኒ ቢራቱ": {
+        "id": "088",
+        "office": "ቢሮ ቁጥር 04 (የፋይናንስ ቢሮ)",
+        "admin": "በለጠ ፍቃዱ",
+        "dept": "ግዥ ባለሙያ II",
+    }
 }
 
 def init_sqlite_db():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    
-    # 18 columns in attendance table (excluding auto-increment id)
     c.execute('''
         CREATE TABLE IF NOT EXISTS attendance (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -169,7 +552,6 @@ def init_sqlite_db():
             approval_status TEXT
         )
     ''')
-    
     c.execute('''
         CREATE TABLE IF NOT EXISTS admins (
             username TEXT PRIMARY KEY,
@@ -178,7 +560,6 @@ def init_sqlite_db():
             role TEXT
         )
     ''')
-
     c.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -188,7 +569,6 @@ def init_sqlite_db():
             timestamp TEXT
         )
     ''')
-
     c.execute('''
         CREATE TABLE IF NOT EXISTS employees (
             emp_id TEXT PRIMARY KEY,
@@ -198,23 +578,6 @@ def init_sqlite_db():
             dept TEXT
         )
     ''')
-
-    try:
-        c.execute("SELECT admin FROM employees LIMIT 1")
-    except sqlite3.OperationalError:
-        try:
-            c.execute("ALTER TABLE employees ADD COLUMN admin TEXT")
-        except:
-            pass
-
-    try:
-        c.execute("SELECT dept FROM employees LIMIT 1")
-    except sqlite3.OperationalError:
-        try:
-            c.execute("ALTER TABLE employees ADD COLUMN dept TEXT")
-        except:
-            pass
-
     c.execute('''
         CREATE TABLE IF NOT EXISTS audit_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -226,17 +589,14 @@ def init_sqlite_db():
     
     default_admins = [
         ("superadmin", "super08password", "ሁሉም ቢሮዎች", "ዋና አድሚን (Super Admin)"),
-        ("admin_office1", "pass123office1", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "ቢሮ 01 አድሚን (ዘረአብርሃም)"),
-        ("admin_office2", "pass123office2", "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)", "ቢሮ 02 አድሚን (ሰለሞን)"),
+        ("admin_office1", "pass123office1", "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)", "ቢሮ 01 አድሚን"),
     ]
     for adm in default_admins:
         c.execute("INSERT OR IGNORE INTO admins (username, password, office, role) VALUES (?, ?, ?, ?)", adm)
 
-    c.execute("SELECT COUNT(*) FROM employees")
-    if c.fetchone()[0] == 0:
-        for name, info in DEFAULT_EMPLOYEES.items():
-            c.execute("INSERT OR IGNORE INTO employees (emp_id, name, office, admin, dept) VALUES (?, ?, ?, ?, ?)",
-                      (info['id'], name, info['office'], info['admin'], info['dept']))
+    for name, info in DEFAULT_EMPLOYEES.items():
+        c.execute("INSERT OR IGNORE INTO employees (emp_id, name, office, admin, dept) VALUES (?, ?, ?, ?, ?)",
+                  (info['id'], name, info['office'], info['admin'], info['dept']))
 
     conn.commit()
     conn.close()
@@ -288,60 +648,16 @@ str_lit.set_page_config(page_title="የንፋስ ስልክ ላፍቶ ክፍለ �
 
 str_lit.markdown("""
 <style>
-    .stApp {
-        background-color: #f4f7f6;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-    h1 {
-        color: #1b4332;
-        font-weight: 800;
-        padding-bottom: 10px;
-        border-bottom: 3px solid #2d6a4f;
-    }
-    h2, h3 {
-        color: #2d6a4f;
-    }
-    .stTabs [data-baseweb="tab"] {
-        background-color: #e9ecef;
-        border-radius: 8px 8px 0px 0px;
-        color: #212529;
-        font-weight: bold;
-        padding: 10px 20px;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #2d6a4f !important;
-        color: white !important;
-    }
-    div[data-testid="metric-container"] {
-        background: linear-gradient(135deg, #2d6a4f 0%, #40916c 100%);
-        border: none;
-        padding: 15px;
-        border-radius: 12px;
-        color: white;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    div[data-testid="metric-container"] label {
-        color: #e9ecef !important;
-        font-weight: 600;
-    }
-    div[data-testid="metric-container"] div[data-testid="stMetricValue"] {
-        color: white !important;
-        font-size: 26px;
-    }
-    .stButton button {
-        background-color: #2d6a4f;
-        color: white;
-        border-radius: 8px;
-        padding: 0.5rem 1rem;
-        font-weight: bold;
-        border: none;
-        transition: 0.3s;
-    }
-    .stButton button:hover {
-        background-color: #1b4332;
-        color: #ffffff;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    }
+    .stApp { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    h1 { color: #1b4332; font-weight: 800; padding-bottom: 10px; border-bottom: 3px solid #2d6a4f; }
+    h2, h3 { color: #2d6a4f; }
+    .stTabs [data-baseweb="tab"] { background-color: #e9ecef; border-radius: 8px 8px 0px 0px; color: #212529; font-weight: bold; padding: 10px 20px; }
+    .stTabs [aria-selected="true"] { background-color: #2d6a4f !important; color: white !important; }
+    div[data-testid="metric-container"] { background: linear-gradient(135deg, #2d6a4f 0%, #40916c 100%); border: none; padding: 15px; border-radius: 12px; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    div[data-testid="metric-container"] label { color: #e9ecef !important; font-weight: 600; }
+    div[data-testid="metric-container"] div[data-testid="stMetricValue"] { color: white !important; font-size: 26px; }
+    .stButton button { background-color: #2d6a4f; color: white; border-radius: 8px; padding: 0.5rem 1rem; font-weight: bold; border: none; transition: 0.3s; }
+    .stButton button:hover { background-color: #1b4332; color: #ffffff; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -365,9 +681,13 @@ with tabs[0]:
         with col3:
             year_val = str_lit.selectbox("ዓመተ ምህረት", [str(y) for y in range(2015, 2036)], index=3)
 
-    search_query = str_lit.text_input("🔎 ሰራተኛ ለመፈለግ ስም ይጻፉ").strip().lower()
+    search_query = str_lit.text_input("🔎 ሰራተኛ ለመፈለግ ስም ወይም መታወቂያ (ID) ይጻፉ").strip().lower()
     
-    filtered_employees = [name for name in EMPLOYEES_DATABASE.keys() if search_query in name.lower()]
+    filtered_employees = []
+    for name, info in EMPLOYEES_DATABASE.items():
+        if search_query in name.lower() or search_query in info['id'].lower():
+            filtered_employees.append(name)
+            
     selected_employee = str_lit.selectbox("የሰራተኛ ስም ይምረጡ", filtered_employees if filtered_employees else list(EMPLOYEES_DATABASE.keys()))
     
     if selected_employee:
@@ -390,41 +710,55 @@ with tabs[0]:
         "11:30 (የማታ መውጫ - ከ 11:15 ጀምሮ አክቲቭ)"
     ], horizontal=True)
 
-    current_hour = datetime.now().hour
-    current_minute = datetime.now().minute
-    
+    now = datetime.now()
+    greg_hour = now.hour
+    greg_minute = now.minute
+
+    eth_hour = (greg_hour - 6) % 24
+    if eth_hour <= 0:
+        eth_hour += 12
+    eth_minute = greg_minute
+
     is_auto_late = False
     is_active_allowed = True
+    is_disabled = False
     is_regular_work_day = ("መደበኛ የስራ ቀን" in day_type)
+    is_friday = (now.weekday() == 4)
 
     if is_regular_work_day:
         if "2:30" in shift:
-            if (current_hour < 8) or (current_hour == 8 and current_minute < 10):
-                is_active_allowed = False
-            if (current_hour > 8) or (current_hour == 8 and current_minute > 45):
-                is_auto_late = True
+            if (eth_hour == 2 and eth_minute < 10) or (eth_hour < 2): is_active_allowed = False
+            if (eth_hour > 3) or (eth_hour == 3 and eth_minute > 0): is_disabled = True
+            if (eth_hour == 2 and 45 <= eth_minute <= 60) or (eth_hour == 3 and eth_minute == 0): is_auto_late = True
         elif "6:30" in shift:
-            if (current_hour > 12) or (current_hour == 12 and current_minute > 45):
-                is_auto_late = True
+            if is_friday:
+                if (eth_hour == 5 and eth_minute < 30) or (eth_hour < 5): is_active_allowed = False
+                if (eth_hour > 7) or (eth_hour == 7 and eth_minute > 0): is_disabled = True
+                if (eth_hour == 6 and 45 <= eth_minute <= 60) or (eth_hour == 7 and eth_minute == 0): is_auto_late = True
+            else:
+                if (eth_hour == 6 and eth_minute < 30) or (eth_hour < 6): is_active_allowed = False
+                if (eth_hour > 7) or (eth_hour == 7 and eth_minute > 0): is_disabled = True
+                if (eth_hour == 6 and 45 <= eth_minute <= 60) or (eth_hour == 7 and eth_minute == 0): is_auto_late = True
         elif "7:30" in shift:
-            if (current_hour < 13) or (current_hour == 13 and current_minute < 30):
-                is_active_allowed = False
-            if (current_hour > 13) or (current_hour == 13 and current_minute > 45):
-                is_auto_late = True
+            if (eth_hour == 7 and eth_minute < 30) or (eth_hour < 7): is_active_allowed = False
+            if (eth_hour > 8) or (eth_hour == 8 and eth_minute > 0): is_disabled = True
+            if (eth_hour == 7 and 45 <= eth_minute <= 60) or (eth_hour == 8 and eth_minute == 0): is_auto_late = True
         elif "11:30" in shift:
-            if (current_hour < 17) or (current_hour == 17 and current_minute < 15):
-                is_active_allowed = False
-            if (current_hour > 17) or (current_hour == 17 and current_minute > 45):
-                is_auto_late = True
+            if (eth_hour == 11 and eth_minute < 15) or (eth_hour < 11): is_active_allowed = False
+            if (eth_hour > 12) or (eth_hour == 12 and eth_minute > 0): is_disabled = True
+            if (eth_hour == 11 and 45 <= eth_minute <= 60) or (eth_hour == 12 and eth_minute == 0): is_auto_late = True
 
     if not is_active_allowed:
         str_lit.warning("⚠️ ትኩረት: ለዚህ ፈረቃ የተፈቀደው የአክቲቭ ሰዓት ገደብ ገና አልደረሰም!")
+
+    if is_disabled:
+        str_lit.error("❌ የዚህ ፈረቃ ምዝገባ ሰዓት አልፎዋል (Disabled)፤ መመዝገብ አይቻልም!")
 
     if is_regular_work_day:
         default_status_index = 1 if is_auto_late else 0
         status_type = str_lit.selectbox("ሁኔታ", ["በሰዓት ገብቷል/ታለች", "አርፍዷል/አርፍዳለች", "ፈቃድ ነው/ናት"], index=default_status_index)
         if is_auto_late and status_type != "ፈቃድ ነው/ናት":
-            str_lit.warning("⚠️ ከፈረቃ ሰዓት ውጭ ከ 15 ደቂቃ በላይ ዘግይተው ስለተመዘገቡ ሲስተሙ በራስ-ሰር 'አርፍዷል' ብሎ መዝግቧል!")
+            str_lit.warning("⚠️ ከፈረቃ ሰዓት ገደብ ውጭ (ግሬስ ፔሪዮድ ውስጥ) ስለተመዘገቡ ሲስተሙ በራስ-ሰር 'አርፍዷል' ብሎ መዝግቧል!")
     else:
         status_type = str_lit.selectbox("ሁኔታ", ["በሰዓት ገብቷል/ታለች", "ፈቃድ ነው/ናት"], index=0)
         str_lit.info("ℹ️ ከመደበኛ የስራ ቀን ውጭ ስለሆነ 'አርፍዷል/ዘግይቷል' የሚለው መመዘኛ ተሰርዟል፤ በምትኩ የተሰራበት ሰዓት ሙሉ በሙሉ እንደ የትርፍ ሰዓት (Overtime) ይመዘገባል።")
@@ -464,7 +798,8 @@ with tabs[0]:
     str_lit.markdown("---")
     sig_file = str_lit.file_uploader("✍️ የተፈረመበትን ፋይል (ပုံ፣ ፒዲኤፍ ወይም ዶክመንት) ይጫኑ", type=["jpg", "jpeg", "png", "pdf", "docx"])
 
-    if str_lit.button("💾 መረጃውን ለአድሚን ማጽደቂያ ላክ", type="primary"):
+    submit_disabled = is_disabled or (not is_active_allowed)
+    if str_lit.button("💾 መረጃውን ለአድሚን ማጽደቂያ ላክ", type="primary", disabled=submit_disabled):
         if not sig_file:
             str_lit.error("❌ እባክዎ የተፈረመበትን ፋይል ይጫኑ!")
         else:
@@ -476,7 +811,6 @@ with tabs[0]:
 
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
-            # Exactly 18 columns matching the 18 values below:
             c.execute('''
                 INSERT INTO attendance (date_str, raw_date, name, emp_id, office, dept, admin, action_type, shift, status, leave_duration, late_reason, worked_hours, overtime_hours, day_type, signature, timestamp, approval_status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -489,9 +823,13 @@ with tabs[0]:
 # ----------------- TAB 2: QR Code Generator -----------------
 with tabs[1]:
     str_lit.header("🔲 የሰራተኞች QR ኮድ ማመንጫ ማዕከል")
-    qr_search = str_lit.text_input("ተለዋጭ ሰራተኛ ፈልግ", "").strip().lower()
+    qr_search = str_lit.text_input("ሰራተኛ ፈልግ (ስም ወይም ID)", "").strip().lower()
     
-    filtered_qr_emps = {name: info for name, info in EMPLOYEES_DATABASE.items() if qr_search in name.lower()}
+    filtered_qr_emps = {}
+    for name, info in EMPLOYEES_DATABASE.items():
+        if qr_search in name.lower() or qr_search in info['id'].lower():
+            filtered_qr_emps[name] = info
+            
     selected_qr_emp = str_lit.selectbox("ሰራተኛ ይምረጡ (ለ QR)", list(filtered_qr_emps.keys()) if filtered_qr_emps else list(EMPLOYEES_DATABASE.keys()))
     
     if selected_qr_emp:
@@ -571,6 +909,7 @@ with tabs[2]:
                 str_lit.info("🎉 ምንም በመጠባበቅ ላይ ያለ አዲስ ጥያቄ የለም!")
             else:
                 for index, row in pending_df.iterrows():
+                    row_id = int(row['id'])
                     with str_lit.expander(f"📌 {row['name']} - {row['status']} ({row['action_type']}) - ቀን: {row['date_str']}"):
                         str_lit.write(f"**ቢሮ:** {row['office']}")
                         str_lit.write(f"**የቀኑ ሁኔታ:** {row['day_type']}")
@@ -582,42 +921,42 @@ with tabs[2]:
                         
                         col_acc, col_rej, col_ret = str_lit.columns(3)
                         with col_acc:
-                            if str_lit.button("✅ Accept (ተቀበል)", key=f"acc_{row['id']}"):
+                            if str_lit.button("✅ Accept (ተቀበል)", key=f"accept_btn_{row_id}"):
                                 conn = sqlite3.connect(DB_NAME)
                                 c = conn.cursor()
-                                c.execute("UPDATE attendance SET approval_status = 'ጸድቋል (Approved)' WHERE id = ?", (row['id'],))
+                                c.execute("UPDATE attendance SET approval_status = 'ጸድቋል (Approved)' WHERE id = ?", (row_id,))
                                 conn.commit()
                                 conn.close()
-                                log_audit(str_lit.session_state.admin_username, f"Approved attendance request id {row['id']}")
+                                log_audit(str_lit.session_state.admin_username, f"Approved attendance request id {row_id}")
                                 str_lit.success("ጥያቄው ተቀባይነት አግኝቷል!")
                                 str_lit.rerun()
                         with col_rej:
-                            if str_lit.button("❌ Reject (ውድቅ አድርግ)", key=f"rej_{row['id']}"):
+                            if str_lit.button("❌ Reject (ውድቅ አድርግ)", key=f"reject_btn_{row_id}"):
                                 conn = sqlite3.connect(DB_NAME)
                                 c = conn.cursor()
-                                c.execute("UPDATE attendance SET approval_status = 'ውድቅ ተደርጓል (Rejected)' WHERE id = ?", (row['id'],))
+                                c.execute("UPDATE attendance SET approval_status = 'ውድቅ ተደርጓል (Rejected)' WHERE id = ?", (row_id,))
                                 conn.commit()
                                 conn.close()
-                                log_audit(str_lit.session_state.admin_username, f"Rejected attendance request id {row['id']}")
+                                log_audit(str_lit.session_state.admin_username, f"Rejected attendance request id {row_id}")
                                 str_lit.warning("ጥያቄው ውድቅ ተደርጓል!")
                                 str_lit.rerun()
                         with col_ret:
-                            if str_lit.button("🔄 Return (እንዲስተካከል መልስ)", key=f"ret_{row['id']}"):
+                            if str_lit.button("🔄 Return (እንዲስተካከል መልስ)", key=f"return_btn_{row_id}"):
                                 conn = sqlite3.connect(DB_NAME)
                                 c = conn.cursor()
-                                c.execute("UPDATE attendance SET approval_status = 'ተመልሷል (Returned)' WHERE id = ?", (row['id'],))
+                                c.execute("UPDATE attendance SET approval_status = 'ተመልሷል (Returned)' WHERE id = ?", (row_id,))
                                 conn.commit()
                                 conn.close()
-                                log_audit(str_lit.session_state.admin_username, f"Returned attendance request id {row['id']}")
+                                log_audit(str_lit.session_state.admin_username, f"Returned attendance request id {row_id}")
                                 str_lit.info("ጥያቄው እንዲስተካከል ተመልሷል!")
                                 str_lit.rerun()
 
-        # TAB 3.2: Reports & Monthly Summary
+        # TAB 3.2: Reports & Monthly Summary (with PDF, Excel, and ZIP Export options)
         with admin_tabs[1]:
             str_lit.subheader("📈 ዕለታዊ፣ ሳምንታዊ፣ ወርሃዊ ሪፖርቶች እና የወር ጠቅላላ ሰዓት ስሌት ማዕከል")
             
             conn = sqlite3.connect(DB_NAME)
-            query = "SELECT date_str, raw_date, name, emp_id, office, action_type, shift, status, worked_hours, overtime_hours, day_type, leave_duration, late_reason, timestamp FROM attendance WHERE approval_status = 'ጸድቋል (Approved)'"
+            query = "SELECT id, date_str, raw_date, name, emp_id, office, action_type, shift, status, worked_hours, overtime_hours, day_type, leave_duration, late_reason, timestamp FROM attendance WHERE approval_status = 'ጸድቋል (Approved)'"
             df = pd.read_sql(query, conn)
             conn.close()
 
@@ -630,7 +969,7 @@ with tabs[2]:
                 "ሳምንታዊ ሪፖርት (Weekly)",
                 "ወርሃዊ ሪፖርት (Monthly)",
                 "ዓመታዊ ሪፖርት (Yearly)"
-            ])
+            ], key="report_time_filter_select")
 
             if not df.empty and time_filter != "ሁሉም (All-Time)":
                 now = datetime.now()
@@ -645,7 +984,7 @@ with tabs[2]:
                     df = df[df['raw_date'].dt.year == now.year]
 
             unique_offices = ["ሁሉም ቢሮዎች"] + list(df["office"].unique()) if not df.empty else ["ሁሉም ቢሮዎች"]
-            selected_report_office = str_lit.selectbox("ቢሮ ይምረጡ", unique_offices)
+            selected_report_office = str_lit.selectbox("ቢሮ ይምረጡ", unique_offices, key="report_office_select")
 
             if str_lit.session_state.admin_username != "superadmin":
                 selected_report_office = str_lit.session_state.admin_office
@@ -683,15 +1022,74 @@ with tabs[2]:
 
                 str_lit.dataframe(summary_df, use_container_width=True)
 
-                col_ex1, col_ex2 = str_lit.columns(2)
-                with col_ex1:
-                    output = io.BytesIO()
-                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                        summary_df.to_excel(writer, index=False, sheet_name='Monthly_Summary')
-                    excel_data = output.getvalue()
-                    str_lit.download_button("📥 የወር ማጠቃለያ ሪፖርት ወደ Excel አውርድ (.xlsx)", data=excel_data, file_name="monthly_employee_summary.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                # ----------------- EXPORT GENERATORS (Excel, PDF, ZIP) -----------------
+                
+                # 1. Excel Generator
+                excel_output = io.BytesIO()
+                with pd.ExcelWriter(excel_output, engine='openpyxl') as writer:
+                    summary_df.to_excel(writer, index=False, sheet_name='Monthly_Summary')
+                excel_data = excel_output.getvalue()
+
+                # 2. PDF Generator (በእንግሊዝኛ አርዕስቶች እና ፊደላት እንዳይበላሹ የተስተካከለ)
+                pdf_output = io.BytesIO()
+                pdf_doc = SimpleDocTemplate(pdf_output, pagesize=letter)
+                story = []
+                styles = getSampleStyleSheet()
+                
+                title_style = ParagraphStyle(
+                    'TitleStyle',
+                    parent=styles['Heading1'],
+                    fontSize=13,
+                    textColor=colors.HexColor('#1b4332'),
+                    spaceAfter=10
+                )
+                
+                story.append(Paragraph("Woreda 08 Attendance Summary Report", title_style))
+                story.append(Paragraph(f"Filter Period: {time_filter} | Office: {selected_report_office}", styles['Normal']))
+                story.append(Spacer(1, 10))
+
+                # ለፒዲኤፍ ሪፖርት ንባብ ግልጽ እንዲሆን አርዕስቶቹን በእንግሊዝኛ አድርገናል (የስም እና ቢሮ ጽሁፎች ሙሉ በሙሉ ይነበባሉ)
+                pdf_df_export = summary_df.copy()
+                pdf_df_export.columns = ['Employee Name', 'Emp ID', 'Office Name', 'Total Worked Hours', 'Total Overtime', 'Weekend/Special OT', 'Total Records']
+
+                pdf_data = [list(pdf_df_export.columns)]
+                for _, row in pdf_df_export.iterrows():
+                    pdf_data.append([str(val) for val in row])
+
+                t = Table(pdf_data)
+                t.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2d6a4f')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, -1), 8),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 5),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f4f7f6')),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
+                ]))
+                story.append(t)
+                pdf_doc.build(story)
+                pdf_data_bytes = pdf_output.getvalue()
+
+                # 3. ZIP Generator (Excel and PDF combined)
+                zip_output = io.BytesIO()
+                with zipfile.ZipFile(zip_output, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    zipf.writestr("attendance_summary_report.xlsx", excel_data)
+                    zipf.writestr("attendance_summary_report.pdf", pdf_data_bytes)
+                zip_data = zip_output.getvalue()
+
+                # Download UI Buttons
+                str_lit.markdown("### 📥 ሪፖርቱን በተለያዩ ቅርጸ-ቁምፊዎች (Formats) ያውርዱ")
+                dl_col1, dl_col2, dl_col3 = str_lit.columns(3)
+                
+                with dl_col1:
+                    str_lit.download_button("📥 Excel (.xlsx)", data=excel_data, file_name="attendance_summary.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                with dl_col2:
+                    str_lit.download_button("📥 PDF (.pdf)", data=pdf_data_bytes, file_name="attendance_summary.pdf", mime="application/pdf")
+                with dl_col3:
+                    str_lit.download_button("🗂️ ዚፕ ፋይል (ZIP Package)", data=zip_data, file_name="attendance_reports_package.zip", mime="application/zip")
             else:
-                str_lit.info("📊 በዚህ የጊዜ ገደብ ውስጥ ምንም የጸደቀ መረጃ የለም።")
+                str_lit.info("📊 በዚህ የጊዜ ገደብ ውስጥ ምንም የጸደቀ መረጃ ስለሌለ ሪፖርት ማውረድ አይቻልም።")
 
         # TAB 3.3: Messaging Center
         with admin_tabs[2]:
@@ -724,25 +1122,41 @@ with tabs[2]:
             if not msgs_df.empty:
                 str_lit.dataframe(msgs_df, use_container_width=True)
             else:
-                str_lit.info("📭 እስካሁን የተመዘገበ ምንም መልዕክት የለም።")
+                str_lit.info("📭 እስካሁን የተመዘገበ ምንም መልዕክት ለም።")
 
-        # TAB 3.4: Employee Management
+        # TAB 3.4: Employee Management (Add, Delete & Edit)
         with admin_tabs[3]:
-            str_lit.subheader("👥 የሰራተኞች ምዝገባ እና ስንብት (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት መዋቅር)")
+            str_lit.subheader("👥 የሰራተኞች ምዝገባ፣ ማስተካከያ (Edit) እና ስንብት")
             
-            emp_tabs = str_lit.tabs(["➕ አዲስ ሰራተኛ መዝግብ", "🗑️ ሰራተኛ ከስራ ሰርዝ/አሰናብት"])
+            emp_tabs = str_lit.tabs(["➕ አዲስ ሰራተኛ መዝግብ", "✏️ ሰራተኛ መረጃ አስተካክል (Edit)", "🗑️ ሰራተኛ ከስራ ሰርዝ/አሰናብት"])
             
             with emp_tabs[0]:
                 with str_lit.form("add_employee_form"):
                     str_lit.markdown("#### አዲስ ሰራተኛ መመዝገቢያ ፎርም")
                     new_emp_name = str_lit.text_input("የሰራተኛው ሙሉ ስም")
-                    new_emp_id = str_lit.text_input("የሰራተኛ መታወቂያ (ምሳሌ: EMP023)")
+                    new_emp_id = str_lit.text_input("የሰራተኛ መታወቂያ (ምሳሌ: 089)")
+                    
                     new_emp_office = str_lit.selectbox("የስራ ቢሮ", [
                         "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-                        "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)"
+                        "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+                        "ቢሮ ቁጥር 03 (የሰው ሀብትና ፐብሊክ ሰርቪስ ቢሮ)",
+                        "ቢሮ ቁጥር 04 (የፋይናንስ ቢሮ)",
+                        "ቢሮ ቁጥር 05 (ሴቶችና ህፃናት ቢሮ)",
+                        "ቢሮ ቁጥር 06 (ህብረተሰብ በጎ ፈቃድ ማስተባበሪያ ጽ/ቤት)",
+                        "ቢሮ ቁጥር 07 (ወጣቶችና ስፖርት)",
+                        "ቢሮ ቁጥር 08 (ህብረት ስራ ማህበራት ጽ/ቤት)",
+                        "ቢሮ ቁጥር 09 (ኮሚኒኬሽን ቢሮ)",
+                        "ቢሮ ቁጥር 10 (ፅዳትና ውበት አስተዳደር)",
+                        "ቢሮ ቁጥር 11 (ህብረት ስራ ማህበራት ቢሮ)",
+                        "ቢሮ ቁጥር 12 (ስራ ክህሎት ቢሮ)",
+                        "ቢሮ ቁጥር 13 (አርሶ አደርና ከተማ ግብርና)",
+                        "ቢሮ ቁጥር 14 (ትምህርት ቢሮ)",
+                        "ቢሮ ቁጥር 15 (ንግድ ቢሮ)",
+                        "ቢሮ ቁጥር 16 (ሰላምና ፀጥታ ቢሮ)"
                     ])
+                    
                     new_emp_admin = str_lit.text_input("የኃላፊው/አድሚኑ ስም", "ዘረአብርሃም ሙሉጌታ")
-                    new_emp_dept = str_lit.text_input("የስራ መደብ/ክፍል", "የነዋሪነት አገልግሎት ባለሙያ")
+                    new_emp_dept = str_lit.text_input("የስራ መደብ/ክፍል", "ባለሙያ")
                     
                     submit_new_emp = str_lit.form_submit_button("➕ ሰራተኛ መዝግብ")
                     if submit_new_emp:
@@ -755,19 +1169,72 @@ with tabs[2]:
                                 conn.commit()
                                 conn.close()
                                 log_audit(str_lit.session_state.admin_username, f"Registered new employee: {new_emp_name} ({new_emp_id})")
-                                str_lit.success(f"✅ ሰራተኛ {new_emp_name} በወረዳ 08 ሲቪል ምዝገባ እና የነዋሪነት አገልግሎት ስር ተመዝግቧል!")
+                                str_lit.success(f"✅ ሰራተኛ {new_emp_name} በተሳካ ሁኔታ ተመዝግቧል!")
+                                str_lit.rerun()
                             except sqlite3.IntegrityError:
                                 str_lit.error("❌ ይህ የሰራተኛ መታወቂያ (ID) ቀደም ሲል ተይዟል!")
                         else:
                             str_lit.error("❌ እባክዎ ስም እና መታወቂያ ቁጥር በትክክል ይሙሉ!")
 
             with emp_tabs[1]:
+                str_lit.markdown("#### ✏️ ነባር ሰራተኛ መረጃ ማስተካከያ (Edit)")
+                conn = sqlite3.connect(DB_NAME)
+                edit_emps_df = pd.read_sql("SELECT emp_id, name, office, dept, admin FROM employees", conn)
+                conn.close()
+
+                if not edit_emps_df.empty:
+                    selected_edit_emp = str_lit.selectbox("ሊስተካከል የሚገባውን ሰራተኛ ይምረጡ", edit_emps_df['name'].tolist(), key="select_emp_to_edit")
+                    emp_current_data = edit_emps_df[edit_emps_df['name'] == selected_edit_emp].iloc[0]
+
+                    with str_lit.form("edit_employee_form"):
+                        edited_name = str_lit.text_input("የሰራተኛው ሙሉ ስም", value=emp_current_data['name'])
+                        edited_id = str_lit.text_input("የሰራተኛ መታወቂያ (ID)", value=emp_current_data['emp_id'])
+                        
+                        offices_list = [
+                            "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
+                            "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+                            "ቢሮ ቁጥር 03 (የሰው ሀብትና ፐብሊክ ሰርቪስ ቢሮ)",
+                            "ቢሮ ቁጥር 04 (የፋይናንስ ቢሮ)",
+                            "ቢሮ ቁጥር 05 (ሴቶችና ህፃናት ቢሮ)",
+                            "ቢሮ ቁጥር 06 (ህብረተሰብ በጎ ፈቃድ ማስተባበሪያ ጽ/ቤት)",
+                            "ቢሮ ቁጥር 07 (ወጣቶችና ስፖርት)",
+                            "ቢሮ ቁጥር 08 (ህብረት ስራ ማህበራት ጽ/ቤት)",
+                            "ቢሮ ቁጥር 09 (ኮሚኒኬሽን ቢሮ)",
+                            "ቢሮ ቁጥር 10 (ፅዳትና ውበት አስተዳደር)",
+                            "ቢሮ ቁጥር 11 (ህብረት ስራ ማህበራት ቢሮ)",
+                            "ቢሮ ቁጥር 12 (ስራ ክህሎት ቢሮ)",
+                            "ቢሮ ቁጥር 13 (አርሶ አደርና ከተማ ግብርና)",
+                            "ቢሮ ቁጥር 14 (ትምህርት ቢሮ)",
+                            "ቢሮ ቁጥር 15 (ንግድ ቢሮ)",
+                            "ቢሮ ቁጥር 16 (ሰላምና ፀጥታ ቢሮ)"
+                        ]
+                        default_office_idx = offices_list.index(emp_current_data['office']) if emp_current_data['office'] in offices_list else 0
+                        edited_office = str_lit.selectbox("የስራ ቢሮ", offices_list, index=default_office_idx)
+                        
+                        edited_admin = str_lit.text_input("ኃላፊ", value=emp_current_data['admin'])
+                        edited_dept = str_lit.text_input("የስራ መደብ/ክፍል", value=emp_current_data['dept'])
+
+                        submit_edit_emp = str_lit.form_submit_button("💾 መረጃ አድስ (Update)")
+                        if submit_edit_emp:
+                            conn = sqlite3.connect(DB_NAME)
+                            c = conn.cursor()
+                            c.execute("UPDATE employees SET emp_id = ?, name = ?, office = ?, admin = ?, dept = ? WHERE name = ?",
+                                      (edited_id, edited_name, edited_office, edited_admin, edited_dept, selected_edit_emp))
+                            conn.commit()
+                            conn.close()
+                            log_audit(str_lit.session_state.admin_username, f"Updated employee profile: {edited_name}")
+                            str_lit.success(f"✅ የሰራተኛው ({edited_name}) መረጃ በተሳካ ሁኔታ ተስተካክሏል!")
+                            str_lit.rerun()
+                else:
+                    str_lit.info("ምንም ሰራተኛ አልተገኘምም።")
+
+            with emp_tabs[2]:
                 conn = sqlite3.connect(DB_NAME)
                 current_emps_df = pd.read_sql("SELECT emp_id, name, office FROM employees", conn)
                 conn.close()
                 
                 if not current_emps_df.empty:
-                    emp_to_delete = str_lit.selectbox("ከሰራ የተለየ/የተሰናበተ ሰራተኛ ይምረጡ", current_emps_df['name'].tolist())
+                    emp_to_delete = str_lit.selectbox("ከሰራ የተለየ/የተሰናበተ ሰራተኛ ይምረጡ", current_emps_df['name'].tolist(), key="delete_emp_selectbox")
                     if str_lit.button("🗑️ ይህንን ሰራተኛ ከሲስተሙ ሰርዝ", type="primary"):
                         conn = sqlite3.connect(DB_NAME)
                         c = conn.cursor()
@@ -787,12 +1254,12 @@ with tabs[2]:
             conn.close()
             str_lit.dataframe(all_emp_view, use_container_width=True)
 
-        # TAB 3.5: Admin Management, Password Reset & Audit Logs
+        # TAB 3.5: Admin Management & Audit Logs
         with admin_tabs[4]:
             if str_lit.session_state.admin_username == "superadmin":
-                str_lit.subheader("⚙️ አድሚኖች ማስተዳደሪያ፣ ፓስወርድ ማደሻ እና ኦዲት ሎግ")
+                str_lit.subheader("⚙️ አድሚኖች ማስተዳደሪያ፣ አዲስ ጨምር/ኤዲት አድርግ እና ኦዲት ሎግ")
                 
-                super_sub_tabs = str_lit.tabs(["🔄 አድሚን ፓስወርድ ረሴት", "➕ አድሚን ጨምር/ሰርዝ", "📜 የኦዲት ሎግ (Audit Log)"])
+                super_sub_tabs = str_lit.tabs(["🔄 አድሚን ፓስወርድ ረሴት", "➕ አድሚን ጨምር/አስተካክል (Edit)", "📜 የኦዲት ሎግ (Audit Log)"])
                 
                 with super_sub_tabs[0]:
                     str_lit.markdown("#### የሱፐር አድሚን ፓስወርድ ማደሻ ማዕከል")
@@ -801,9 +1268,9 @@ with tabs[2]:
                     conn.close()
                     
                     with str_lit.form("super_reset_form"):
-                        target_admin = str_lit.selectbox("ፓስወርዱ የሚቀየርለት አድሚን ዩዘርኔም", adm_list_df['username'].tolist() if not adm_list_df.empty else [])
-                        new_pass_admin = str_lit.text_input("አዲስ ፓስወርድ", type="password")
-                        new_pass_admin_conf = str_lit.text_input("አዲስ ፓስወርድ ደግመህ አስገባ", type="password")
+                        target_admin = str_lit.selectbox("ፓስወርዱ የሚቀየርለት አድሚን ዩዘርኔም", adm_list_df['username'].tolist() if not adm_list_df.empty else [], key="reset_admin_select")
+                        new_pass_admin = str_lit.text_input("አዲስ ፓስወርድ", type="password", key="new_p1")
+                        new_pass_admin_conf = str_lit.text_input("አዲስ ፓስወርድ ደግመህ አስገባ", type="password", key="new_p2")
                         
                         reset_btn = str_lit.form_submit_button("🔄 ፓስወርድ አድስ (Reset)")
                         if reset_btn:
@@ -822,46 +1289,114 @@ with tabs[2]:
                                 str_lit.error("❌ እባክዎ ሁሉንም መስኮች ይሙሉ!")
 
                 with super_sub_tabs[1]:
-                    with str_lit.form("new_admin_form"):
-                        new_user = str_lit.text_input("አዲስ አድሚን ዩዘርኔም")
-                        new_pass = str_lit.text_input("ፓስወርድ አስገባ", type="password")
-                        new_office = str_lit.selectbox("የሚቆጣጠረው ቢሮ", [
-                            "ሁሉም ቢሮዎች",
-                            "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
-                            "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)"
-                        ])
-                        new_role = str_lit.text_input("የኃላፊነት መግለጫ (Role)", "ቢሮ አድሚን")
-                        
-                        submit_admin = str_lit.form_submit_button("➕ አዲስ አድሚን ፍጠር")
-                        if submit_admin:
-                            if new_user and new_pass:
-                                try:
+                    admin_action_tabs = str_lit.tabs(["➕ አዲስ አድሚን ጨምር", "✏️ ነባር አድሚን መረጃ አስተካክል (Edit)", "🗑️ አድሚን ሰርዝ"])
+
+                    with admin_action_tabs[0]:
+                        with str_lit.form("new_admin_form"):
+                            new_user = str_lit.text_input("አዲስ አድሚን ዩዘርኔም", key="new_adm_user")
+                            new_pass = str_lit.text_input("ፓስወርድ አስገባ", type="password", key="new_adm_pass")
+                            new_office = str_lit.selectbox("የሚቆጣጠረው ቢሮ", [
+                                "ሁሉም ቢሮዎች",
+                                "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
+                                "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+                                "ቢሮ ቁጥር 03 (የሰው ሀብትና ፐብሊክ ሰርቪስ ቢሮ)",
+                                "ቢሮ ቁጥር 04 (የፋይናንስ ቢሮ)",
+                                "ቢሮ ቁጥር 05 (ሴቶችና ህፃናት ቢሮ)",
+                                "ቢሮ ቁጥር 06 (ህብረተሰብ በጎ ፈቃድ ማስተባበሪያ ጽ/ቤት)",
+                                "ቢሮ ቁጥር 07 (ወጣቶችና ስፖርት)",
+                                "ቢሮ ቁጥር 08 (ህብረት ስራ ማህበራት ጽ/ቤት)",
+                                "ቢሮ ቁጥር 09 (ኮሚኒኬሽን ቢሮ)",
+                                "ቢሮ ቁጥር 10 (ፅዳትና ውበት አስተዳደር)",
+                                "ቢሮ ቁጥር 11 (ህብረት ስራ ማህበራት ቢሮ)",
+                                "ቢሮ ቁጥር 12 (ስራ ክህሎት ቢሮ)",
+                                "ቢሮ ቁጥር 13 (አርሶ አደርና ከተማ ግብርና)",
+                                "ቢሮ ቁጥር 14 (ትምህርት ቢሮ)",
+                                "ቢሮ ቁጥር 15 (ንግድ ቢሮ)",
+                                "ቢሮ ቁጥር 16 (ሰላምና ፀጥታ ቢሮ)"
+                            ], key="new_adm_office")
+                            new_role = str_lit.text_input("የኃላፊነት መግለጫ (Role)", "ቢሮ አድሚን", key="new_adm_role")
+                            
+                            submit_admin = str_lit.form_submit_button("➕ አዲስ አድሚን ፍጠር")
+                            if submit_admin:
+                                if new_user and new_pass:
+                                    try:
+                                        conn = sqlite3.connect(DB_NAME)
+                                        c = conn.cursor()
+                                        c.execute("INSERT INTO admins (username, password, office, role) VALUES (?, ?, ?, ?)", (new_user, new_pass, new_office, new_role))
+                                        conn.commit()
+                                        conn.close()
+                                        log_audit("superadmin", f"Created new admin account: {new_user}")
+                                        str_lit.success(f"✅ አዲሱ አድሚን ({new_user}) ተፈጥሯል!")
+                                        str_lit.rerun()
+                                    except sqlite3.IntegrityError:
+                                        str_lit.error("❌ ይህ ዩዘርኔም ቀደም ሲል አለ።")
+                                else:
+                                    str_lit.error("❌ ዩዘርኔም እና ፓስወርድ ማስገባት ግዴታ ነው።")
+
+                    with admin_action_tabs[1]:
+                        str_lit.markdown("#### ✏️ የአድሚን መረጃ ማስተካከያ (Edit Admin)")
+                        conn = sqlite3.connect(DB_NAME)
+                        all_admins_df = pd.read_sql("SELECT username, password, office, role FROM admins", conn)
+                        conn.close()
+
+                        if not all_admins_df.empty:
+                            selected_edit_admin = str_lit.selectbox("ሊስተካከል የሚገባው አድሚን ዩዘርኔም", all_admins_df['username'].tolist(), key="select_admin_to_edit")
+                            current_adm_data = all_admins_df[all_admins_df['username'] == selected_edit_admin].iloc[0]
+
+                            with str_lit.form("edit_admin_form"):
+                                edited_adm_user = str_lit.text_input("ዩዘርኔም (Username)", value=current_adm_data['username'])
+                                edited_adm_pass = str_lit.text_input("ፓስወርድ (Password)", value=current_adm_data['password'])
+                                
+                                offices_list = [
+                                    "ሁሉም ቢሮዎች",
+                                    "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
+                                    "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
+                                    "ቢሮ ቁጥር 03 (የሰው ሀብትና ፐብሊክ ሰርቪስ ቢሮ)",
+                                    "ቢሮ ቁጥር 04 (የፋይናንስ ቢሮ)",
+                                    "ቢሮ ቁጥር 05 (ሴቶችና ህፃናት ቢሮ)",
+                                    "ቢሮ ቁጥር 06 (ህብረተሰብ በጎ ፈቃድ ማስተባበሪያ ጽ/ቤት)",
+                                    "ቢሮ ቁጥር 07 (ወጣቶችና ስፖርት)",
+                                    "ቢሮ ቁጥር 08 (ህብረት ስራ ማህበራት ጽ/ቤት)",
+                                    "ቢሮ ቁጥር 09 (ኮሚኒኬሽን ቢሮ)",
+                                    "ቢሮ ቁጥር 10 (ፅዳትና ውበት አስተዳደር)",
+                                    "ቢሮ ቁጥር 11 (ህብረት ስራ ማህበራት ቢሮ)",
+                                    "ቢሮ ቁጥር 12 (ስራ ክህሎት ቢሮ)",
+                                    "ቢሮ ቁጥር 13 (አርሶ አደርና ከተማ ግብርና)",
+                                    "ቢሮ ቁጥር 14 (ትምህርት ቢሮ)",
+                                    "ቢሮ ቁጥር 15 (ንግድ ቢሮ)",
+                                    "ቢሮ ቁጥር 16 (ሰላምና ፀጥታ ቢሮ)"
+                                ]
+                                default_adm_office_idx = offices_list.index(current_adm_data['office']) if current_adm_data['office'] in offices_list else 0
+                                edited_adm_office = str_lit.selectbox("የሚቆጣጠረው ቢሮ", offices_list, index=default_adm_office_idx, key="edit_adm_office")
+                                edited_adm_role = str_lit.text_input("የኃላፊነት መግለጫ (Role)", value=current_adm_data['role'])
+
+                                submit_edit_admin = str_lit.form_submit_button("💾 አድሚን መረጃ አድስ (Update)")
+                                if submit_edit_admin:
                                     conn = sqlite3.connect(DB_NAME)
                                     c = conn.cursor()
-                                    c.execute("INSERT INTO admins (username, password, office, role) VALUES (?, ?, ?, ?)", (new_user, new_pass, new_office, new_role))
+                                    c.execute("UPDATE admins SET username = ?, password = ?, office = ?, role = ? WHERE username = ?",
+                                              (edited_adm_user, edited_adm_pass, edited_adm_office, edited_adm_role, selected_edit_admin))
                                     conn.commit()
                                     conn.close()
-                                    log_audit("superadmin", f"Created new admin account: {new_user}")
-                                    str_lit.success(f"✅ አዲሱ አድሚን ({new_user}) ተፈጥሯል!")
-                                except sqlite3.IntegrityError:
-                                    str_lit.error("❌ ይህ ዩዘርኔም ቀደም ሲል አለ።")
-                            else:
-                                str_lit.error("❌ ዩዘርኔም እና ፓስወርድ ማስገባት ግዴታ ነው።")
+                                    log_audit(str_lit.session_state.admin_username, f"Updated admin profile: {edited_adm_user}")
+                                    str_lit.success(f"✅ የአድሚን ({edited_adm_user}) መረጃ በተሳካ ሁኔታ ተስተካክሏል!")
+                                    str_lit.rerun()
 
-                    conn = sqlite3.connect(DB_NAME)
-                    del_adm_df = pd.read_sql("SELECT username FROM admins WHERE username != 'superadmin'", conn)
-                    conn.close()
-                    if not del_adm_df.empty:
-                        del_adm_target = str_lit.selectbox("ሊሰረዝ የሚገባው አድሚን", del_adm_df['username'].tolist())
-                        if str_lit.button("🗑️ አድሚኑን ሰርዝ"):
-                            conn = sqlite3.connect(DB_NAME)
-                            c = conn.cursor()
-                            c.execute("DELETE FROM admins WHERE username = ?", (del_adm_target,))
-                            conn.commit()
-                            conn.close()
-                            log_audit("superadmin", f"Deleted admin account: {del_adm_target}")
-                            str_lit.success(f"✅ አድሚን ({del_adm_target}) ተሰርዟል!")
-                            str_lit.rerun()
+                    with admin_action_tabs[2]:
+                        conn = sqlite3.connect(DB_NAME)
+                        del_adm_df = pd.read_sql("SELECT username FROM admins WHERE username != 'superadmin'", conn)
+                        conn.close()
+                        if not del_adm_df.empty:
+                            del_adm_target = str_lit.selectbox("ሊሰረዝ የሚገባው አድሚን", del_adm_df['username'].tolist(), key="del_admin_select")
+                            if str_lit.button("🗑️ አድሚኑን ሰርዝ"):
+                                conn = sqlite3.connect(DB_NAME)
+                                c = conn.cursor()
+                                c.execute("DELETE FROM admins WHERE username = ?", (del_adm_target,))
+                                conn.commit()
+                                conn.close()
+                                log_audit("superadmin", f"Deleted admin account: {del_adm_target}")
+                                str_lit.success(f"✅ አድሚን ({del_adm_target}) ተሰርዟል!")
+                                str_lit.rerun()
 
                 with super_sub_tabs[2]:
                     str_lit.markdown("#### 📜 የሲስተም ኦዲት ሎግ (ማን ምን አደረገ?)")
@@ -871,6 +1406,6 @@ with tabs[2]:
                     if not audit_df.empty:
                         str_lit.dataframe(audit_df, use_container_width=True)
                     else:
-                        str_lit.info("📭 እስካሁን የተመዘገበ ኦዲት ሎግ የለም።")
+                        str_lit.info("📭 እስካሁን የተመዘገበ ኦዲት ሎግ ለም።")
             else:
                 str_lit.warning("⚠️ ይህንን ገጽ ማየት የሚችሉት ዋናው ሱፐር አድሚን (Super Admin) ብቻ ናቸው።")
