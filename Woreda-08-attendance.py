@@ -128,6 +128,12 @@ DEFAULT_EMPLOYEES = {
         "admin": "ዘረአብርሃም ሙሉጌታ",
         "dept": "የሪከርድና ማህደር ባለሙያ",
     },
+    "ስንዱ ካሳሁን አስናቀው": {
+        "id": "020",
+        "office": "ቢሮ ቁጥር 01 (የሲቪል ምዝገባ እና የነዋሪነት አገልግሎት)",
+        "admin": "ዘረአብርሃም ሙሉጌታ",
+        "dept": "የቢሮ አስተዳደር እና ጸሃፊ",
+    },
     "አለምነሽ መንገሻ በየነ": {
         "id": "021",
         "office": "ቢሮ ቁጥር 02 (ዋና ስራአስፈፃሚ)",
@@ -2003,7 +2009,7 @@ with tabs[0]:
         "2:30 (የጠዋት መግቢያ - ከ 2:10 ጀምሮ አክቲቭ)",
         "6:30 (የእኩለ ቀን መውጫ - ከአርብ 5:30 ጀምሮ አክቲቭ)",
         "7:30 (የከሰዓት መግቢያ - ከ 7:30 ጀምሮ አክቲቭ)",
-        "11:30 (የማታ መውጫ - ከ 11:15 ጀምሮ አክቲቭ)"
+        "11:30 (የከሰዓት መውጫ - ከ 11:15 ጀምሮ አክቲቭ)"
     ], horizontal=True)
 
     now = datetime.now()
@@ -2075,7 +2081,7 @@ with tabs[0]:
         leave_year = str_lit.selectbox("የፈቃድ ዓመተ ምህረት", [str(y) for y in range(2015, 2036)], index=3, key="l_yr")
         leave_duration = f"የቀን ብዛት: {leave_days} | ከ {leave_from_month} {leave_from_day} እስከ {leave_to_month} {leave_to_day}, {leave_year} ዓ.ም"
     elif is_regular_work_day and (("አርፍዷል" in status_type) or ("አርፍዳለች" in status_type) or is_auto_late):
-        late_reason = str_lit.text_input("⏰ ያረፈዱበት/የዘገዩበት ምክንያት", "ምክንያት ተጻፈ")
+        late_reason = str_lit.text_input("⏰ ያረፈዱበት/የዘገዩበት ምክንያት", "ምክንያት ጻፍ ")
 
     str_lit.markdown("### ⏱️ የስራ ሰዓት እና የትርፍ ሰዓት ስሌት መለኪያ")
     
